@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+/usr/bin/env ruby <<-EORUBY
+
+require 'csv'
+require 'json'
+require 'aws-sdk'
+
+class NodeCompletion
+
+  @@ec2ssh_cache_file = File.join(Dir.home, '.ec2ssh')
+
+  def initialize(command)
+    @command = command
+  end
+
+  def matches
+    nodes.select do |node|
+      node[0, typed.length] == typed
+    end
+  end
+
+  def typed
+    @command[/\s(.+?)$/, 1] || ''
+  end
+
+  def nodes
+    ensure_nodes_cached
+    CSV.read(@@ec2ssh_cache_file, { :headers => true })['node_name']
+  end
+
+  # AWS Helper methods
+  def aws_resource_name(resource)
+    tags_with_key_name = resource.tags.select{|tag| tag.key == "Name"}
+    if tags_with_key_name.any?
+      tags_with_key_name.first.value
+    else
+      "no-resource-tag-name"
+    end
+  end
+
+  def ensure_nodes_cached
+    unless File.file?(@@ec2ssh_cache_file)
+      puts "INFO: Cache file #{@@ec2ssh_cache_file} doesn't exist. It will be created ..."
+      puts "INFO: Loading AWS Resources ..."
+      ENV['AWS_REGION'] ||= 'eu-central-1'
+      puts "AWS Region: #{ENV['AWS_REGION']}"
+      ec2 = Aws::EC2::Client.new(region: ENV['AWS_REGION'])
+      reservations = ec2.describe_instances.reservations
+
+      header = ["node_name"] + ["private_ip"] + ["public_ip"]
+      # Generate CSV
+      csv_string = CSV.generate do |csv|
+        csv << header
+        reservations.each do |reservation|
+          reservation.instances.each do |instance|
+            row = [aws_resource_name(instance)] + [instance.private_ip_address] + [instance.public_ip_address]
+            csv << row
+          end
+        end
+      end
+      puts "INFO: #{reservations.count} instance(s) were loaded"
+
+      File.write(@@ec2ssh_cache_file, csv_string)
+    end
+  end
+
+end
+
+puts NodeCompletion.new(ENV["COMP_LINE"]).matches
+
+EORUBY

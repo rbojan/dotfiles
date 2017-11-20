@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+function _ec2ssh_command {
+/usr/bin/env ruby <<-EORUBY
+  require 'csv'
+  csv = CSV.read(File.join(Dir.home, '.ec2ssh'), { :headers => true })
+  csv_row = csv.find {|row| row['node_name'] == '$1'}
+  if csv_row && !csv_row.empty?
+    private_ip = csv_row['private_ip']
+    command =  "ssh -A -tt #{private_ip}"
+  else
+    command = "error (ec2ssh): could not find node $1"
+  end
+  puts command
+EORUBY
+}
+
+function ec2ssh {
+  local ssh_command="$(_ec2ssh_command $@)"
+  if  [[ $ssh_command == error* ]] ; then
+    echo $ssh_command
+  else
+    echo "info (ec2ssh): $ssh_command"
+    eval $ssh_command
+  fi
+}
+
+complete -C ~/.dotfiles/bash/completion_scripts/ec2ssh.completion -o default ec2ssh
+
+
+function ec2ssh-refresh {
+  echo "info (ec2ssh): deleting cached file (~/.ec2ssh) ..."
+  rm ~/.ec2ssh
+  echo "info (ec2ssh): cache will be built up on next autocompletion"
+}
