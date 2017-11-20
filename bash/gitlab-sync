@@ -22,6 +22,8 @@ function gitlab-sync {
       puts "Pulling in #{path}..."
       %x(cd #{path} && git pull)
     else
+      puts "Creating directory #{namespace_path}..."
+      %x(mkdir -p #{namespace_path})
       puts "Cloning #{project.path_with_namespace} into #{namespace_path}..."
       %x(mkdir -p #{namespace_path} && cd #{namespace_path} && git clone #{project.ssh_url_to_repo})
     end
