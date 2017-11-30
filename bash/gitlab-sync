@@ -8,9 +8,12 @@ function gitlab-sync {
   # User private token
   Gitlab.private_token = ENV['GITLAB_API_PRIVATE_TOKEN']
 
-  p base_path =  '$1'.length == 0 ? '.' : '$1'
-
+  base_path =  '$1'.length == 0 ? '.' : '$1'
   puts "Base path set to #{File.expand_path(base_path)}"
+
+  ENV['GITLAB_SYNC_IGNORE'] ||= ""
+  words = ENV['GITLAB_SYNC_IGNORE'].split(',')
+  puts "Using GITLAB_SYNC_IGNORE=#{ENV['GITLAB_SYNC_IGNORE']}" if words.any?
 
   projects = Gitlab.projects(membership:true)
 
@@ -18,14 +21,18 @@ function gitlab-sync {
     path = File.expand_path(File.join(base_path, project.path_with_namespace))
     namespace_path = File.expand_path(File.join(base_path, project.namespace.full_path))
 
-    if File.directory? path
-      puts "Pulling in #{path}..."
-      %x(cd #{path} && git pull)
+    if words.any? { |word| namespace_path.include?(word) }
+      puts "Ignoring directory #{namespace_path}..."
     else
-      puts "Creating directory #{namespace_path}..."
-      %x(mkdir -p #{namespace_path})
-      puts "Cloning #{project.path_with_namespace} into #{namespace_path}..."
-      %x(mkdir -p #{namespace_path} && cd #{namespace_path} && git clone #{project.ssh_url_to_repo})
+      if File.directory? path
+        puts "Pulling in #{path}..."
+        %x(cd #{path} && git pull)
+      else
+        puts "Creating directory #{namespace_path}..."
+        %x(mkdir -p #{namespace_path})
+        puts "Cloning #{project.path_with_namespace} into #{namespace_path}..."
+        %x(mkdir -p #{namespace_path} && cd #{namespace_path} && git clone #{project.ssh_url_to_repo})
+      end
     end
   end
 EORUBY
