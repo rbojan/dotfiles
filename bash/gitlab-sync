@@ -11,9 +11,13 @@ function gitlab-sync {
   base_path =  '$1'.length == 0 ? '.' : '$1'
   puts "Base path set to #{File.expand_path(base_path)}"
 
-  ENV['GITLAB_SYNC_IGNORE'] ||= ""
-  words = ENV['GITLAB_SYNC_IGNORE'].split(',')
-  puts "Using GITLAB_SYNC_IGNORE=#{ENV['GITLAB_SYNC_IGNORE']}" if words.any?
+  ENV['GITLAB_SYNC_EXCLUDE'] ||= ""
+  words_exclude = ENV['GITLAB_SYNC_EXCLUDE'].split(',')
+  puts "Using GITLAB_SYNC_EXCLUDE=#{ENV['GITLAB_SYNC_EXCLUDE']}" if words_exclude.any?
+
+  ENV['GITLAB_SYNC_INCLUDE'] ||= ""
+  words_include = ENV['GITLAB_SYNC_INCLUDE'].split(',')
+  puts "Using GITLAB_SYNC_INCLUDE=#{ENV['GITLAB_SYNC_INCLUDE']}" if words_include.any?
 
   projects = Gitlab.projects(membership:true)
 
@@ -21,8 +25,12 @@ function gitlab-sync {
     path = File.expand_path(File.join(base_path, project.path_with_namespace))
     namespace_path = File.expand_path(File.join(base_path, project.namespace.full_path))
 
-    if words.any? { |word| path.include?(word) }
-      puts "Ignoring directory #{path}..."
+    if words_include.any?
+       next unless words_include.any? { |word| path.include?(word) }
+    end
+
+    if words_exclude.any? { |word| path.include?(word) }
+      puts "Excluded directory #{path}..."
     else
       if File.directory? path
         puts "Pulling in #{path}..."
